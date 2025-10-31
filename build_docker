@@ -1,2 +1,4 @@
 # docker builder prune
-docker build --no-cache -t remote_code_server:0.0.1 .
+# docker build --no-cache -f code_offline.Dockerfile -t remote_code_server:0.0.1 .
+# docker build --no-cache -f code_online.Dockerfile -t remote_code_server:0.0.1 .
+# docker build --no-cache -t remote_code_server:0.0.1 .

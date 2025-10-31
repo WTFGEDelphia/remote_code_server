@@ -1,6 +1,10 @@
 # 直接临时访问镜像
-# docker run --rm -it --entrypoint /bin/bash remote_code_server:0.0.1
-# 获取镜像ip
-# docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' remote_code_dev
-# docker exec -it remote_code_dev /bin/bash
+# docker run --rm -it --entrypoint /bin/bash code_offline:0.0.1
+# docker run --rm -it --entrypoint /bin/bash code_online:0.0.1
+# 容器后台
+# docker exec -it container_code_offline /bin/bash
+# docker exec -it container_code_online /bin/bash
+# docker compose 启动
+# docker compose up -d -f code_offline.docker-compose.yml
+# docker compose up -d -f code_online.docker-compose.yml
 docker compose up -d

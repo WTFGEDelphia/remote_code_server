@@ -1,0 +1,6 @@
+# 直接临时访问镜像
+# docker run --rm -it --entrypoint /bin/bash remote_code_server:0.0.1
+# 获取镜像ip
+# docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' remote_code_dev
+# docker exec -it remote_code_dev /bin/bash
+docker compose up -d

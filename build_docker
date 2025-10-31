@@ -1,0 +1,2 @@
+# docker builder prune
+docker build --no-cache -t remote_code_server:0.0.1 .

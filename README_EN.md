@@ -1,5 +1,7 @@
 # VS Code Remote SSH on Docker
 
+English | [中文](README_CN.md)
+
 This project provides a comprehensive solution for setting up a VS Code development environment within a Docker container, accessible via the Remote-SSH extension. It offers both online and offline setup methods to cater to different network conditions.
 
 ## Features
@@ -95,3 +97,27 @@ The default configuration is designed for ease of use and testing. For a more se
 -   **Use SSH Keys**: Modify the `Dockerfile` and `docker-compose.yml` to use SSH key-based authentication instead of passwords. You can do this by mounting your `~/.ssh/authorized_keys` file into the container.
 -   **Avoid Root User**: Create a non-root user in the `Dockerfile` with `sudo` privileges if needed, and use that user for your SSH connection. The provided `code_offline.Dockerfile` already creates a `vscode` user.
 -   **Limit Port Exposure**: If possible, do not expose the SSH port to the public internet. Keep it bound to `127.0.0.1` if you are only accessing it locally.
+
+## 🤝 Contributing
+
+Welcome to submit Issues and Pull Requests!
+
+1. Fork this project
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## 📄 License
+
+MIT License
+
+## 📞 Contact
+
+For customized collection or other questions, welcome to:
+- Submit [Issue](https://github.com/WTFGEDelphia/remote_code_server/issues)
+- Contact the author
+
+---
+
+**Note**: This project is for learning and research purposes only. Please comply with relevant website terms of use and laws and regulations.

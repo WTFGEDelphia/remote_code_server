@@ -110,7 +110,7 @@ Welcome to submit Issues and Pull Requests!
 
 ## 📄 License
 
-MIT License
+[MIT License](LICENSE)
 
 ## 📞 Contact
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 快速启动脚本 - Docker 开发环境
-# 用法: ./quick-start.sh [ubuntu|alpine|multistage]
+# 用法: ./quick-start.sh [ubuntu|multistage]
 
 set -e
 
@@ -36,34 +36,34 @@ show_help() {
     echo "用法: $0 [选项]"
     echo ""
     echo "选项:"
-    echo "  ubuntu       启动 Ubuntu 优化版本 (推荐用于团队开发)"
-    echo "  alpine       启动 Alpine 轻量版本 (推荐用于个人开发)"
-    echo "  multistage   启动多阶段构建版本 (推荐用于生产)"
-    echo "  stop         停止所有容器"
-    echo "  clean        清理所有容器和镜像"
-    echo "  status       显示容器状态"
-    echo "  help         显示此帮助信息"
+    echo "  ubuntu            启动 Ubuntu 优化版本"
+    echo "  multistage        启动 Ubuntu 多阶段构建版本"
+    echo "  stop              停止所有容器"
+    echo "  clean             清理所有容器和镜像"
+    echo "  status            显示容器状态"
+    echo "  verify            验证所有运行中的服务"
+    echo "  help              显示此帮助信息"
     echo ""
     echo "示例:"
-    echo "  $0 ubuntu    # 启动 Ubuntu 版本"
-    echo "  $0 alpine    # 启动 Alpine 版本"
-    echo "  $0 stop      # 停止所有容器"
+    echo "  $0 ubuntu         # 启动 Ubuntu 版本"
+    echo "  $0 multistage     # 启动 Ubuntu 多阶段版本"
+    echo "  $0 stop           # 停止所有容器"
 }
 
 # 检查 Docker 和 Docker Compose
 check_dependencies() {
     print_info "检查依赖..."
-    
+
     if ! command -v docker &> /dev/null; then
         print_error "Docker 未安装，请先安装 Docker"
         exit 1
     fi
-    
+
     if ! command -v docker-compose &> /dev/null; then
         print_error "Docker Compose 未安装，请先安装 Docker Compose"
         exit 1
     fi
-    
+
     print_success "依赖检查通过"
 }
 
@@ -71,13 +71,10 @@ check_dependencies() {
 build_image() {
     local type=$1
     print_info "构建 $type 版本镜像..."
-    
+
     case $type in
         "ubuntu")
             docker-compose build dev-ubuntu
-            ;;
-        "alpine")
-            docker-compose build dev-alpine
             ;;
         "multistage")
             docker-compose build dev-multistage
@@ -87,34 +84,145 @@ build_image() {
             exit 1
             ;;
     esac
-    
+
     print_success "$type 版本镜像构建完成"
 }
 
 # 启动服务
+# 验证服务状态
+verify_service() {
+    local type=$1
+    local port=$2
+    local container_name=""
+
+    # 确定容器名称
+    case $type in
+        "ubuntu")
+            container_name="ossapp-dev-ubuntu"
+            ;;
+        "multistage")
+            container_name="ossapp-dev-multistage"
+            ;;
+    esac
+
+    print_info "验证 $type 服务状态..."
+
+    # 检查容器是否运行
+    if ! docker ps | grep -q "$container_name"; then
+        print_error "容器 $container_name 未运行"
+        return 1
+    fi
+
+    # 检查SSH服务
+    if docker exec "$container_name" pgrep sshd >/dev/null 2>&1; then
+        print_success "SSH 服务运行正常"
+    else
+        print_warning "SSH 服务未运行，尝试启动..."
+        docker exec "$container_name" /usr/bin/sshd 2>/dev/null || true
+        sleep 2
+        if docker exec "$container_name" pgrep sshd >/dev/null 2>&1; then
+            print_success "SSH 服务已启动"
+        else
+            print_error "SSH 服务启动失败"
+            return 1
+        fi
+    fi
+
+    # 检查关键二进制文件
+    if docker exec "$container_name" test -f /usr/sbin/sshd; then
+        print_success "SSH 二进制文件存在"
+    else
+        print_error "SSH 二进制文件缺失"
+        return 1
+    fi
+
+    # 检查用户配置
+    if docker exec "$container_name" id ossapp >/dev/null 2>&1; then
+        print_success "用户 ossapp 配置正确"
+    else
+        print_warning "用户 ossapp 未找到"
+    fi
+
+    print_success "$type 服务验证完成"
+}
+
+# 验证所有服务
+verify_all_services() {
+    print_info "验证所有运行中的服务..."
+    echo
+
+    # 检查所有容器
+    local running_containers=$(docker ps --format "table {{.Names}}\t{{.Status}}" | grep "dev-")
+
+    if [ -z "$running_containers" ]; then
+        print_warning "没有找到运行中的开发容器"
+        echo "请先启动一个服务: $0 [ubuntu|alpine|alpine-multistage|multistage]"
+        return 1
+    fi
+
+    echo "运行中的容器:"
+    echo "$running_containers"
+    echo
+
+    # 验证每个容器
+    while IFS= read -r line; do
+        if [[ $line == dev-* ]]; then
+            local container_name=$(echo "$line" | awk '{print $1}')
+            local container_type=""
+
+            case $container_name in
+                "dev-ubuntu")
+                    container_type="ubuntu"
+                    ;;
+                "dev-multistage")
+                    container_type="multistage"
+                    ;;
+            esac
+
+            if [ -n "$container_type" ]; then
+                echo "=== 验证 $container_type 容器 ==="
+                verify_service "$container_type" "$(get_port_for_type "$container_type")"
+                echo
+            fi
+        fi
+    done <<< "$running_containers"
+}
+
+# 获取端口号
+get_port_for_type() {
+    local type=$1
+    case $type in
+        "ubuntu")
+            echo "2022"
+            ;;
+        "multistage")
+            echo "2023"
+            ;;
+    esac
+}
+
 start_service() {
     local type=$1
     local port=$2
-    
+
     print_info "启动 $type 版本服务..."
-    
+
     case $type in
         "ubuntu")
             docker-compose up -d dev-ubuntu
             port="2022"
             ;;
-        "alpine")
-            docker-compose up -d dev-alpine
-            port="2023"
-            ;;
         "multistage")
             docker-compose up -d dev-multistage
-            port="2024"
+            port="2023"
             ;;
     esac
-    
+
     sleep 3
-    
+
+    # 验证服务状态
+    verify_service "$type" "$port"
+
     print_success "$type 版本服务已启动"
     print_info "SSH 连接信息:"
     echo "  主机: localhost"
@@ -164,11 +272,6 @@ main() {
             build_image "ubuntu"
             start_service "ubuntu"
             ;;
-        "alpine")
-            check_dependencies
-            build_image "alpine"
-            start_service "alpine"
-            ;;
         "multistage")
             check_dependencies
             build_image "multistage"
@@ -185,6 +288,10 @@ main() {
         "status")
             check_dependencies
             show_status
+            ;;
+        "verify")
+            check_dependencies
+            verify_all_services
             ;;
         "help"|"-h"|"--help")
             show_help

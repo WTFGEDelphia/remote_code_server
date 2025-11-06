@@ -1,16 +1,22 @@
-# 优化版本 3: 多阶段构建版本
+# 多阶段构建版本
 # 阶段 1: 构建阶段 - 安装依赖和工具
 FROM ubuntu:25.10 AS builder
 
 # 设置构建参数
-ARG VSCODE_COMMIT_ID="7d842fb85a0275a4a8e4d7e040d2625abbf7f084"
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
 ARG NVM_VERSION="0.40.3"
+ARG VSCODE_COMMIT_ID="7d842fb85a0275a4a8e4d7e040d2625abbf7f084"
 
 # 设置环境变量
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Asia/Shanghai \
     LC_ALL=C.UTF-8 \
-    LANG=C.UTF-8
+    LANG=C.UTF-8 \
+    HTTP_PROXY=${HTTP_PROXY} \
+    HTTPS_PROXY=${HTTPS_PROXY} \
+    NO_PROXY=${NO_PROXY}
 
 # 安装构建依赖
 RUN sed -Ei 's@https?://(archive|security).ubuntu.com@http://mirrors.tuna.tsinghua.edu.cn@g' \
@@ -45,15 +51,21 @@ RUN curl -Lk https://github.com/nvm-sh/nvm/archive/refs/tags/v${NVM_VERSION}.tar
 FROM ubuntu:25.10 AS runtime
 
 # 设置构建参数
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
 ARG USER_NAME="ossapp"
-ARG SSH_PORT=2022
 ARG VSCODE_COMMIT_ID="7d842fb85a0275a4a8e4d7e040d2625abbf7f084"
+ARG SSH_PORT=2022
 
 # 设置环境变量
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Asia/Shanghai \
     LC_ALL=C.UTF-8 \
     LANG=C.UTF-8 \
+    HTTP_PROXY=${HTTP_PROXY} \
+    HTTPS_PROXY=${HTTPS_PROXY} \
+    NO_PROXY=${NO_PROXY} \
     NVM_DIR="/home/${USER_NAME}/.nvm" \
     CODE_SERVER_DIR="/home/${USER_NAME}/.vscode-server/cli/servers/Stable-${VSCODE_COMMIT_ID}" \
     PATH="/home/${USER_NAME}/.nvm/versions/node/v*/bin:$PATH"
@@ -71,6 +83,9 @@ RUN sed -Ei 's@https?://(archive|security).ubuntu.com@http://mirrors.tuna.tsingh
     bash \
     ca-certificates \
     && \
+    # 直接覆盖时区配置（无需安装 tzdata）
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
+    echo $TZ > /etc/timezone && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
@@ -95,7 +110,8 @@ COPY --from=builder /tmp/code-${VSCODE_COMMIT_ID} /home/${USER_NAME}/.vscode-ser
 COPY --from=builder /tmp/.nvm ${NVM_DIR}
 
 # 设置用户目录权限
-RUN chown -R ${USER_NAME}:${USER_NAME} /home/${USER_NAME}
+RUN mkdir -p /home/${USER_NAME}/workspace && \
+    chown -R ${USER_NAME}:${USER_NAME} /home/${USER_NAME}
 
 # 安装最新版本的nodejs
 RUN sudo -u ${USER_NAME} bash -c "echo 'export NVM_DIR="/home/${USER_NAME}/.nvm"' >> /home/${USER_NAME}/.bashrc && \

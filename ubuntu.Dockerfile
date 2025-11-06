@@ -1,4 +1,4 @@
-# 优化版本 1: 基于 Ubuntu 的安全优化版本
+# 基于 Ubuntu 的版本
 FROM ubuntu:25.10
 
 # 设置构建参数
@@ -6,12 +6,18 @@ ARG VSCODE_COMMIT_ID="7d842fb85a0275a4a8e4d7e040d2625abbf7f084"
 ARG NVM_VERSION="0.40.3"
 ARG USER_NAME="ossapp"
 ARG SSH_PORT=2022
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
 
 # 设置环境变量
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Asia/Shanghai \
     LC_ALL=C.UTF-8 \
     LANG=C.UTF-8 \
+    HTTP_PROXY=${HTTP_PROXY} \
+    HTTPS_PROXY=${HTTPS_PROXY} \
+    NO_PROXY=${NO_PROXY} \
     NVM_DIR="/home/${USER_NAME}/.nvm" \
     NVM_SH_URL="https://github.com/nvm-sh/nvm/archive/refs/tags/v${NVM_VERSION}.tar.gz" \
     CODE_CLI_URL="https://vscode.download.prss.microsoft.com/dbazure/download/stable/${VSCODE_COMMIT_ID}/vscode_cli_alpine_x64_cli.tar.gz" \
@@ -57,7 +63,9 @@ RUN mkdir -p /var/run/sshd && \
     echo "AllowUsers ${USER_NAME}" >> /etc/ssh/sshd_config
 
 # 安装 nvm 和 Node.js
-RUN sudo -u ${USER_NAME} bash -c "curl -Lk ${NVM_SH_URL} --output /tmp/nvm-${NVM_VERSION}.tar.gz && \
+RUN sudo -u ${USER_NAME} bash -c "http_proxy=${HTTP_PROXY} && \
+    http_proxy=${HTTPS_PROXY} && \
+    curl -Lk ${NVM_SH_URL} --output /tmp/nvm-${NVM_VERSION}.tar.gz && \
     tar -xzf /tmp/nvm-${NVM_VERSION}.tar.gz -C /home/${USER_NAME} && \
     mv /home/${USER_NAME}/nvm-${NVM_VERSION} ${NVM_DIR} && \
     rm -rf /home/${USER_NAME}/nvm-$NVM_VERSION && \
@@ -71,7 +79,9 @@ RUN sudo -u ${USER_NAME} bash -c "curl -Lk ${NVM_SH_URL} --output /tmp/nvm-${NVM
 # sudo -u ${USER_NAME} bash -c "source ~/.nvm/nvm.sh && nvm install node && nvm use node && nvm alias default node"
 
 # 创建 VS Code Server 所需的目录结构
-RUN sudo -u ${USER_NAME} bash -c "mkdir -p /home/${USER_NAME}/.vscode-server/cli/servers/Stable-${VSCODE_COMMIT_ID}/ && \
+RUN sudo -u ${USER_NAME} bash -c "http_proxy=${HTTP_PROXY} && \
+    http_proxy=${HTTPS_PROXY} && \
+    mkdir -p /home/${USER_NAME}/.vscode-server/cli/servers/Stable-${VSCODE_COMMIT_ID}/ && \
     curl -Lk ${CODE_SERVER_URL} --output /tmp/vscode-server-linux-x64.tar.gz && \
     tar -xzf /tmp/vscode-server-linux-x64.tar.gz -C \
     /home/${USER_NAME}/.vscode-server/cli/servers/Stable-${VSCODE_COMMIT_ID}/ && \
@@ -79,7 +89,9 @@ RUN sudo -u ${USER_NAME} bash -c "mkdir -p /home/${USER_NAME}/.vscode-server/cli
     /home/${USER_NAME}/.vscode-server/cli/servers/Stable-${VSCODE_COMMIT_ID}/server && \
     rm -f /tmp/vscode-server-linux-x64.tar.gz"
 
-RUN sudo -u ${USER_NAME} bash -c "curl -Lk ${CODE_CLI_URL} --output /tmp/vscode_cli_alpine_x64_cli.tar.gz && \
+RUN sudo -u ${USER_NAME} bash -c "http_proxy=${HTTP_PROXY} && \
+    http_proxy=${HTTPS_PROXY} && \
+    curl -Lk ${CODE_CLI_URL} --output /tmp/vscode_cli_alpine_x64_cli.tar.gz && \
     tar -xzf /tmp/vscode_cli_alpine_x64_cli.tar.gz -C \
     /home/${USER_NAME}/.vscode-server/ && \
     mv /home/${USER_NAME}/.vscode-server/code \
@@ -87,7 +99,7 @@ RUN sudo -u ${USER_NAME} bash -c "curl -Lk ${CODE_CLI_URL} --output /tmp/vscode_
     rm -f /tmp/vscode_cli_alpine_x64_cli.tar.gz"
 
 # 设置用户目录权限
-RUN chown -R ${USER_NAME}:${USER_NAME} /home/${USER_NAME}
+RUN sudo -u ${USER_NAME} bash -c "mkdir -p /home/${USER_NAME}/workspace"
 
 # 暴露 SSH 端口
 EXPOSE ${SSH_PORT}

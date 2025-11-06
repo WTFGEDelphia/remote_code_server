@@ -1,0 +1,49 @@
+version: "3.8"
+
+# 代理参数
+x-proxy-config: &proxy-args
+    args:
+        - HTTP_PROXY=http://172.20.44.28:7897
+        - HTTPS_PROXY=http://172.20.44.28:7897
+        - NO_PROXY=localhost,127.0.0.1,
+
+services:
+    # 基于 Ubuntu 的开发环境
+    dev-ubuntu:
+        build:
+            context: .
+            dockerfile: ubuntu.Dockerfile
+            <<: *proxy-args
+        container_name: ossapp-dev-ubuntu
+        ports:
+            - "2022:2022"
+        volumes:
+            - ./ubuntu-wk-data:/home/ossapp/workspace
+        environment:
+            - USER_NAME=ossapp
+            - SSH_PORT=2022
+        restart: unless-stopped
+        networks:
+            - dev-network
+
+    # 多阶段构建环境
+    dev-multistage:
+        build:
+            context: .
+            dockerfile: ubuntu.multistage.Dockerfile
+            <<: *proxy-args
+        container_name: ossapp-dev-multistage
+        ports:
+            - "2023:2022"
+        volumes:
+            - ./multistage-wk-data:/home/ossapp/workspace
+        environment:
+            - USER_NAME=ossapp
+            - SSH_PORT=2022
+        restart: unless-stopped
+        networks:
+            - dev-network
+
+networks:
+    dev-network:
+        driver: bridge

@@ -95,8 +95,7 @@ create_mount_directories() {
             print_info "创建目录: ./$dir"
             if mkdir -p "./$dir"; then
                 # 设置合适的权限
-                chmod 755 "./$dir"
-                chown 1001:1001 "./$dir"
+                chmod -R 777 "./$dir"
                 print_success "目录创建成功: ./$dir"
             else
                 print_error "目录创建失败: ./$dir"

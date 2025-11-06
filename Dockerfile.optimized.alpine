@@ -1,0 +1,102 @@
+# 优化版本 2: 基于 Alpine Linux 的轻量版本
+FROM alpine:3.22
+
+# 设置构建参数
+ARG VSCODE_COMMIT_ID="7d842fb85a0275a4a8e4d7e040d2625abbf7f084"
+ARG NVM_VERSION="0.40.3"
+ARG USER_NAME="ossapp"
+ARG SSH_PORT=2022
+
+# 设置环境变量
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=Asia/Shanghai \
+    LC_ALL=C.UTF-8 \
+    LANG=C.UTF-8 \
+    NVM_DIR="/home/${USER_NAME}/.nvm" \
+    NVM_SH_URL="https://github.com/nvm-sh/nvm/archive/refs/tags/v${NVM_VERSION}.tar.gz" \
+    CODE_CLI_URL="https://vscode.download.prss.microsoft.com/dbazure/download/stable/${VSCODE_COMMIT_ID}/vscode_cli_alpine_x64_cli.tar.gz" \
+    CODE_SERVER_URL="https://vscode.download.prss.microsoft.com/dbazure/download/stable/${VSCODE_COMMIT_ID}/vscode-server-linux-x64.tar.gz" \
+    PATH="/home/${USER_NAME}/.nvm/versions/node/v*/bin:$PATH"
+
+# 安装基础软件包
+RUN sed -Ei 's@https?://dl-cdn.alpinelinux.org@http://mirrors.tuna.tsinghua.edu.cn@g' \
+    /etc/apk/repositories && \
+    apk update --no-cache && \
+    apk add --no-cache \
+    sudo \
+    libatomic \
+    openssh \
+    git \
+    curl \
+    wget \
+    gnupg \
+    ca-certificates \
+    procps \
+    unzip \
+    tar \
+    bash \
+    python3 \
+    py3-pip \
+    git \
+    build-base \
+    libffi-dev \
+    openssl-dev \
+    shadow && \
+    # 创建用户和组
+    addgroup -g 1000 ${USER_NAME} && \
+    adduser -D -G ${USER_NAME} -u 1000 -s /bin/bash ${USER_NAME} && \
+    # 添加用户到 sudo 组
+    addgroup ${USER_NAME} wheel && \
+    echo 'ossapp:ossapp' | chpasswd && \
+    echo "${USER_NAME} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# 配置 SSH 服务
+RUN mkdir -p /var/run/sshd && \
+    sed -i "s/#Port 22/Port ${SSH_PORT}/g" /etc/ssh/sshd_config && \
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/g' /etc/ssh/sshd_config && \
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/g' /etc/ssh/sshd_config && \
+    echo "AllowUsers ${USER_NAME}" >> /etc/ssh/sshd_config
+
+# 安装 nvm 和 Node.js
+RUN sudo -u ${USER_NAME} bash -c "curl -Lk ${NVM_SH_URL} --output /tmp/nvm-${NVM_VERSION}.tar.gz && \
+    tar -xzf /tmp/nvm-${NVM_VERSION}.tar.gz -C /home/${USER_NAME} && \
+    mv /home/${USER_NAME}/nvm-${NVM_VERSION} ${NVM_DIR} && \
+    rm -rf /home/${USER_NAME}/nvm-$NVM_VERSION && \
+    rm -f /tmp/nvm-${NVM_VERSION}.tar.gz && \
+    echo 'export NVM_DIR="/home/${USER_NAME}/.nvm"' >> /home/${USER_NAME}/.bashrc && \
+    echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"'  \# This loads nvm >> /home/${USER_NAME}/.bashrc && \
+    echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"'  \# This loads nvm bash_completion >> /home/${USER_NAME}/.bashrc  && \
+    source ~/.nvm/nvm.sh && nvm install node && nvm use node && nvm alias default node"
+
+# RUN sudo -u ${USER_NAME} bash -c "curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v${NVM_VERSION}/install.sh | bash" && \
+# sudo -u ${USER_NAME} bash -c "source ~/.nvm/nvm.sh && nvm install node && nvm use node && nvm alias default node"
+
+# 创建 VS Code Server 所需的目录结构
+RUN sudo -u ${USER_NAME} bash -c "mkdir -p /home/${USER_NAME}/.vscode-server/cli/servers/Stable-${VSCODE_COMMIT_ID}/ && \
+    curl -Lk ${CODE_SERVER_URL} --output /tmp/vscode-server-linux-x64.tar.gz && \
+    tar -xzf /tmp/vscode-server-linux-x64.tar.gz -C \
+    /home/${USER_NAME}/.vscode-server/cli/servers/Stable-${VSCODE_COMMIT_ID}/ && \
+    mv /home/${USER_NAME}/.vscode-server/cli/servers/Stable-${VSCODE_COMMIT_ID}/vscode-server-linux-x64 \
+    /home/${USER_NAME}/.vscode-server/cli/servers/Stable-${VSCODE_COMMIT_ID}/server && \
+    rm -f /tmp/vscode-server-linux-x64.tar.gz"
+
+RUN sudo -u ${USER_NAME} bash -c "curl -Lk ${CODE_CLI_URL} --output /tmp/vscode_cli_alpine_x64_cli.tar.gz && \
+    tar -xzf /tmp/vscode_cli_alpine_x64_cli.tar.gz -C \
+    /home/${USER_NAME}/.vscode-server/ && \
+    mv /home/${USER_NAME}/.vscode-server/code \
+    /home/${USER_NAME}/.vscode-server/code-${VSCODE_COMMIT_ID} && \
+    rm -f /tmp/vscode_cli_alpine_x64_cli.tar.gz"
+
+# 设置用户目录权限
+RUN chown -R ${USER_NAME}:${USER_NAME} /home/${USER_NAME}
+
+# 暴露 SSH 端口
+EXPOSE ${SSH_PORT}
+
+# 添加健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD pgrep sshd || exit 1
+
+# 切换到非 root 用户并启动 SSH 服务
+USER ${USER_NAME}
+CMD ["/usr/sbin/sshd", "-D"]

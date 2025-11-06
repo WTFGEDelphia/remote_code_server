@@ -90,8 +90,8 @@ RUN sed -Ei 's@https?://(archive|security).ubuntu.com@http://mirrors.tuna.tsingh
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 创建用户和组
-RUN groupadd -r ${USER_NAME} && \
-    useradd -r -g ${USER_NAME} -m -s /bin/bash ${USER_NAME} && \
+RUN groupadd -r ${USER_NAME} -g 1001 && \
+    useradd -r -g ${USER_NAME} -u 1001 -m -s /bin/bash ${USER_NAME} && \
     usermod -aG sudo ${USER_NAME} && \
     echo 'ossapp:ossapp' | chpasswd && \
     echo "${USER_NAME} ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers

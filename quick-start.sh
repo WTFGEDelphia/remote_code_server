@@ -40,8 +40,10 @@ show_help() {
     echo "  multistage        启动 Ubuntu 多阶段构建版本"
     echo "  stop              停止所有容器"
     echo "  clean             清理所有容器和镜像"
+    echo "  clean-volumes     清理所有挂载目录和数据"
     echo "  status            显示容器状态"
     echo "  verify            验证所有运行中的服务"
+    echo "  dirs              显示挂载目录状态"
     echo "  help              显示此帮助信息"
     echo ""
     echo "示例:"
@@ -67,11 +69,89 @@ check_dependencies() {
     print_success "依赖检查通过"
 }
 
+# 创建挂载目录
+create_mount_directories() {
+    print_info "创建挂载目录..."
+
+    # 检查当前目录是否包含 docker-compose.yml
+    if [ ! -f "./docker-compose.yml" ]; then
+        print_error "未找到 docker-compose.yml 文件"
+        print_error "请确保在包含 docker-compose.yml 的目录下运行此脚本"
+        print_error "当前目录: $(pwd)"
+        exit 1
+    fi
+
+    print_info "当前目录: $(pwd)"
+    print_info "找到 docker-compose.yml"
+
+    # 创建议程化字典用于存储要创建的目录和对应的服务
+    declare -A directories
+    directories["ubuntu-wk-data"]="ubuntu"
+    directories["multistage-wk-data"]="multistage"
+
+    # 手动创建所有需要的目录
+    for dir in "${!directories[@]}"; do
+        if [ ! -d "./$dir" ]; then
+            print_info "创建目录: ./$dir"
+            if mkdir -p "./$dir"; then
+                # 设置合适的权限
+                chmod 755 "./$dir"
+                chown 1001:1001 "./$dir"
+                print_success "目录创建成功: ./$dir"
+            else
+                print_error "目录创建失败: ./$dir"
+                print_error "请检查权限或磁盘空间"
+                exit 1
+            fi
+        else
+            print_info "目录已存在: ./$dir"
+        fi
+    done
+
+    # 验证目录创建结果
+    local failed_dirs=()
+    for dir in "${!directories[@]}"; do
+        if [ ! -d "./$dir" ]; then
+            failed_dirs+=("$dir")
+            print_error "目录验证失败: ./$dir"
+        fi
+    done
+
+    if [ ${#failed_dirs[@]} -gt 0 ]; then
+        print_error "以下目录创建失败: ${failed_dirs[*]}"
+        exit 1
+    fi
+
+    print_success "所有挂载目录准备完成"
+}
+
 # 构建镜像
 build_image() {
     local type=$1
-    print_info "构建 $type 版本镜像..."
+    print_info "准备构建 $type 版本镜像..."
 
+    # 首先创建挂载目录
+    create_mount_directories
+
+    # 再次验证目录是否成功创建
+    local mount_dir=""
+    case $type in
+        "ubuntu")
+            mount_dir="./ubuntu-wk-data"
+            ;;
+        "multistage")
+            mount_dir="./multistage-wk-data"
+            ;;
+    esac
+
+    if [ ! -d "$mount_dir" ]; then
+        print_error "挂载目录 $mount_dir 创建失败，无法继续构建"
+        exit 1
+    fi
+
+    print_info "挂载目录验证通过: $mount_dir"
+
+    print_info "开始构建 $type 版本镜像..."
     case $type in
         "ubuntu")
             docker-compose build dev-ubuntu
@@ -205,8 +285,39 @@ start_service() {
     local type=$1
     local port=$2
 
-    print_info "启动 $type 版本服务..."
+    print_info "准备启动 $type 版本服务..."
+    # 首先创建挂载目录
+    create_mount_directories
+    # 验证目录是否成功创建
+    local mount_dir=""
+    case $type in
+        "ubuntu")
+            mount_dir="./ubuntu-wk-data"
+            port="2022"
+            ;;
+        "alpine")
+            mount_dir="./ubuntu-wk-data"
+            port="2023"
+            ;;
+        "alpine-multistage")
+            mount_dir="./ubuntu-wk-data"
+            port="2025"
+            ;;
+        "multistage")
+            mount_dir="./multistage-wk-data"
+            port="2024"
+            ;;
+    esac
 
+    if [ ! -d "$mount_dir" ]; then
+        print_error "挂载目录 $mount_dir 创建失败，无法启动服务"
+        exit 1
+    fi
+
+    print_info "挂载目录验证通过: $mount_dir"
+    print_info "使用端口: $port"
+
+    print_info "开始启动 $type 版本服务..."
     case $type in
         "ubuntu")
             docker-compose up -d dev-ubuntu
@@ -261,7 +372,62 @@ show_status() {
     docker-compose ps
     echo ""
     print_info "镜像信息:"
-    docker images | grep ossapp || echo "未找到相关镜像"
+    docker images | grep "dev-" || echo "未找到相关镜像"
+}
+
+# 显示目录状态
+show_directory_status() {
+    print_info "挂载目录状态:"
+    echo
+
+    # 检查ubuntu开发目录
+    if [ -d "./ubuntu-wk-data" ]; then
+        local ubuntu_size=$(du -sh ./ubuntu-wk-data 2>/dev/null | cut -f1)
+        print_success "ubuntu-wk-data 目录存在 (大小: $ubuntu_size)"
+        echo "  权限: $(ls -ld ./ubuntu-wk-data | awk '{print $1, $3, $4}')"
+        echo "  路径: $(pwd)/ubuntu-wk-data"
+    else
+        print_warning "ubuntu-wk-data 目录不存在"
+        echo "  建议运行: ./quick-start.sh ubuntu"
+    fi
+    echo
+
+    # 检查多阶段开发目录
+    if [ -d "./multistage-wk-data" ]; then
+        local multistage_size=$(du -sh ./multistage-wk-data 2>/dev/null | cut -f1)
+        print_success "multistage-wk-data 目录存在 (大小: $multistage_size)"
+        echo "  权限: $(ls -ld ./multistage-wk-data | awk '{print $1, $3, $4}')"
+        echo "  路径: $(pwd)/multistage-wk-data"
+    else
+        print_warning "multistage-wk-data 目录不存在"
+        echo "  建议运行: ./quick-start.sh multistage"
+    fi
+    echo
+
+    print_info "Docker Volume 状态:"
+    docker volume ls | grep -E "(ubuntu-dev-data|multistage-dev-data)" || echo "  未找到相关数据卷"
+}
+
+# 清理卷和目录
+clean_volumes() {
+    print_warning "这将删除所有挂载目录和容器数据！"
+    read -p "确认删除所有数据？[y/N]: " -n 1 -r
+    echo
+
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        print_info "停止所有容器..."
+        docker-compose down
+
+        print_info "删除Docker卷..."
+        docker volume rm ubuntu-dev-data multistage-dev-data 2>/dev/null || true
+
+        print_info "清理挂载目录..."
+        rm -rf ./ubuntu-wk-data ./multistage-wk-data 2>/dev/null || true
+
+        print_success "卷和目录清理完成"
+    else
+        print_info "取消清理操作"
+    fi
 }
 
 # 主函数
@@ -292,6 +458,13 @@ main() {
         "verify")
             check_dependencies
             verify_all_services
+            ;;
+        "dirs")
+            show_directory_status
+            ;;
+        "clean-volumes")
+            check_dependencies
+            clean_volumes
             ;;
         "help"|"-h"|"--help")
             show_help

@@ -28,20 +28,26 @@ RUN sed -Ei 's@https?://(archive|security).ubuntu.com@http://mirrors.tuna.tsingh
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 下载并解压 VS Code Server
-RUN curl -Lk "https://vscode.download.prss.microsoft.com/dbazure/download/stable/${VSCODE_COMMIT_ID}/vscode-server-linux-x64.tar.gz" \
+RUN export HTTP_PROXY=$HTTP_PROXY && \
+    export HTTPS_PROXY=$HTTPS_PROXY && \
+    curl -Lk "https://vscode.download.prss.microsoft.com/dbazure/download/stable/${VSCODE_COMMIT_ID}/vscode-server-linux-x64.tar.gz" \
     --output /tmp/vscode-server.tar.gz && \
     tar -xzf /tmp/vscode-server.tar.gz -C /tmp/ && \
     mv /tmp/vscode-server-linux-x64 /tmp/server && \
     rm -f /tmp/vscode-server.tar.gz
 
-RUN curl -Lk "https://vscode.download.prss.microsoft.com/dbazure/download/stable/${VSCODE_COMMIT_ID}/vscode_cli_alpine_x64_cli.tar.gz" \
+RUN export HTTP_PROXY=$HTTP_PROXY && \
+    export HTTPS_PROXY=$HTTPS_PROXY && \
+    curl -Lk "https://vscode.download.prss.microsoft.com/dbazure/download/stable/${VSCODE_COMMIT_ID}/vscode_cli_alpine_x64_cli.tar.gz" \
     --output  /tmp/vscode_cli_alpine_x64_cli.tar.gz && \
     tar -xzf /tmp/vscode_cli_alpine_x64_cli.tar.gz -C /tmp/ && \
     mv /tmp/code /tmp/code-${VSCODE_COMMIT_ID} && \
     rm -f /tmp/vscode_cli_alpine_x64_cli.tar.gz
 
 # 下载 nvm 安装脚本
-RUN curl -Lk https://github.com/nvm-sh/nvm/archive/refs/tags/v${NVM_VERSION}.tar.gz \
+RUN export HTTP_PROXY=$HTTP_PROXY && \
+    export HTTPS_PROXY=$HTTPS_PROXY && \
+    curl -Lk https://github.com/nvm-sh/nvm/archive/refs/tags/v${NVM_VERSION}.tar.gz \
     --output /tmp/nvm-${NVM_VERSION}.tar.gz && \
     tar -xzf /tmp/nvm-${NVM_VERSION}.tar.gz -C /tmp/ && \
     mv /tmp/nvm-${NVM_VERSION} /tmp/.nvm && \

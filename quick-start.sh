@@ -154,10 +154,16 @@ build_image() {
     print_info "开始构建 $type 版本镜像..."
     case $type in
         "ubuntu")
-            docker-compose build dev-ubuntu
+            # 删除所有构建缓存（包括其他镜像）
+            docker builder prune -a -f
+            # --pull：拉取基础镜像的最新版本
+            # --force-rm：删除中间容器
+            # --no-cache：完全跳过缓存，强制重新下载基础镜像并重建所有层
+            docker-compose build --no-cache dev-ubuntu
             ;;
         "multistage")
-            docker-compose build dev-multistage
+            docker builder prune -a -f
+            docker-compose build --no-cache dev-multistage
             ;;
         *)
             print_error "未知的镜像类型: $type"
